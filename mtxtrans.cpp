@@ -29,6 +29,7 @@ void print_mtx(const std::array<uint8_t, N * N> &mtx) {
     }
 }
 
+__attribute__((noinline))
 void naive_trans(uint8_t *mtx) {
     for (auto r = 0; N > r; ++r) {
         for (auto c = 0; r > c; ++c) {

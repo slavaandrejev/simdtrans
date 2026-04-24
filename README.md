@@ -13,18 +13,18 @@ instruction transition penalties.
 
 ## Performance Telemetry (Intel i9-12900H P-Core)
 
-| Counter | SIMD | Naive Scalar |
-|---------|------:|------:|
-| instructions | 229 | 482 |
-| core cycles | 99 | 216 |
-| uops_issued.any | 229 | 481 |
-| uops_retired.slots | 229 | 481 |
-| resource_stalls.sb | 0 | 135 |
-| uops_dispatched.port_0 | 27 | 0 |
-| uops_dispatched.port_1 | 68 | 0 |
-| uops_dispatched.port_2_3_10 | 9 | 240 |
-| uops_dispatched.port_4_9 | 9 | 240 |
-| uops_dispatched.port_5_11 | 87 | 0 |
+| Counter | SIMD | Naive (Clang) | Naive (GCC) |
+|---------|------:|------:|------:|
+| instructions | 229 | 482 | 748 |
+| core cycles | 99 | 216 | 217 |
+| uops_issued.any | 229 | 481 | 748 |
+| uops_retired.slots | 229 | 481 | 748 |
+| resource_stalls.sb | 0 | 135 | 92
+| uops_dispatched.port_0 | 27 | 0 | 40 |
+| uops_dispatched.port_1 | 68 | 0 | 30 |
+| uops_dispatched.port_2_3_10 | 9 | 240 | 241 |
+| uops_dispatched.port_4_9 | 9 | 240 | 242 |
+| uops_dispatched.port_5_11 | 87 | 0 | 66 |
 
 ## Contents
 

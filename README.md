@@ -87,3 +87,21 @@ sudo sh -c 'echo 0 > /proc/sys/kernel/nmi_watchdog'
 The benchmark runs on core 10. You might want to update it in `mtxtrans.cpp`,
 along with the line that disables core 11 above, depending on your CPU
 architecture.
+
+Also, check the counter codes for your architecture using `perf list --details`.
+You may have something different here
+```cpp
+    // BATCH 1
+    CFG[3] = raw_msr(0xae, 0x01); // uops_issued.any
+    CFG[4] = raw_msr(0xc2, 0x02); // uops_retired.slots
+    CFG[5] = raw_msr(0xa2, 0x08); // resource_stalls.sb
+    CFG[6] = raw_msr(0xB2, 0x01); // uops_dispatched.port_0
+```
+and here
+```cpp
+    // BATCH 2
+    CFG[3] = raw_msr(0xb2, 0x02); // uops_dispatched.port_1
+    CFG[4] = raw_msr(0xb2, 0x04); // uops_dispatched.port_2_3_10
+    CFG[5] = raw_msr(0xb2, 0x10); // uops_dispatched.port_4_9
+    CFG[6] = raw_msr(0xb2, 0x20); // uops_dispatched.port_5_11
+```

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <new>
@@ -60,13 +61,11 @@ int main(int argc, char* argv[]) {
 
     // Check correctness
     simdtrans(&mtx2[0]);
-    for (auto r = 0; N > r; ++r) {
-        for (auto c = 0; N > c; ++c) {
-            if (mtx[r * N + c] != mtx2[r * N + c]) {
-                fmt::print(stderr, "simdtrans is incorrect\n");
-                return -1;
-            }
-        }
+    if (!std::equal(mtx.cbegin(), mtx.cend(), mtx2.cbegin())) {
+        fmt::print(stderr, "simdtrans is incorrect\n");
+        print_mtx(mtx);
+        fmt::print("-----------------------------------------------\n");
+        return -1;
     }
 
     pfcPinThread(10);

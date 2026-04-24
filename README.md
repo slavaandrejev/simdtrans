@@ -1,8 +1,18 @@
 # Bare-Metal AVX2 Matrix Transpose (16x16 Byte)
 
-This implementation was built to demonstrate bare-metal optimization techniques,
-specifically focusing on bypassing scalar memory bottlenecks and avoiding legacy
-instruction transition penalties.
+This repository contains a bare-metal AVX2 implementation of a 16x16 byte matrix
+transposition.
+
+The algorithm shows roughly 2x performance gain compared to a naive scalar
+baseline implementation, even though the entire working set fits in L1 cache.
+Hardware profiling reveals that when an algorithm is dominated by memory
+operations, the load/store unit throughput becomes the bottleneck, regardless
+of cache residency.
+
+This AVX2 implementation bypasses the load/store port limitations by absorbing
+the entire matrix into 256-bit registers. Executing the transposition purely
+through vector shuffle units eliminates memory stalls and maximizes throughput
+to the theoretical limit of the silicon.
 
 ## Highlights
 

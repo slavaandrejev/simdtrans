@@ -18,6 +18,10 @@ if get_option('buildtype') == 'release'
     add_project_arguments('-DNDEBUG', language: ['c', 'cpp'])
 endif
 
+if meson.get_compiler('c').get_id() == 'clang'
+    add_project_arguments('-Wno-unused-command-line-argument', language:  'c')
+endif
+
 fmt_dep = dependency('fmt')
 pfc_dep = compiler.find_library('pfc')
 

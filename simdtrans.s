@@ -157,18 +157,6 @@
         vpblendd     $0b11001100, %ymm1, \r1, \r1
     .endm
 
-    # instructions: 234
-    # uops: 314 issued, 247 retired
-    # 200 core cycles
-    # port 0: 22
-    # port 1: 22
-    # port 2: 4
-    # port 3: 4
-    # port 4: 5
-    # port 5: 154
-    # port 6: 14
-    # port 7: 2
-    # resource stall: 46
 simdtrans:
     transpose2x2x1 %rdi, 0x00, %ymm8,  %ymm9
     transpose2x2x1 %rdi, 0x40, %ymm10, %ymm11

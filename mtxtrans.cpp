@@ -93,11 +93,11 @@ int main(int argc, char* argv[]) {
     memset(&CNT[0], 0, sizeof(CNT));
 
     for (auto i = 0; 100 > i; ++i) {
-        naive_trans(&mtx[0]);
+        simdtrans(&mtx[0]);
     }
     PFCSTART(&CNT[0]);
     for(uint64_t k = 0; k < ITERS; ++k) {
-        naive_trans(&mtx[0]);
+        simdtrans(&mtx[0]);
     }
     PFCEND(&CNT[0]);
 
@@ -119,11 +119,11 @@ int main(int argc, char* argv[]) {
     memset(&CNT[0], 0, sizeof(CNT));
 
     for (auto i = 0; 100 > i; ++i) {
-        naive_trans(&mtx[0]);
+        simdtrans(&mtx[0]);
     }
     PFCSTART(&CNT[0]);
     for(uint64_t k = 0; k < ITERS; ++k) {
-        naive_trans(&mtx[0]);
+        simdtrans(&mtx[0]);
     }
     PFCEND(&CNT[0]);
 

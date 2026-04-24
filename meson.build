@@ -1,5 +1,5 @@
 project(
-    'gst-tutorials'
+    'simdtrans'
   , ['c', 'cpp']
   , version : '1.0'
   , meson_version : '>= 1.2'

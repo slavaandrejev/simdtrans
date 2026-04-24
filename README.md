@@ -63,3 +63,27 @@ register pairs so that the rows feeding the next level are properly aligned.
 After all three levels, `vpermq` fixes the final lane ordering, and a sequence
 of `vinserti128`/`vextracti128`/`vpblendd` assembles the eight output rows from
 the eight `YMM` registers for the final store.
+
+## libpfc notes
+
+[libpfc](https://github.com/obilaniu/libpfc) on GitHub is a little bit outdated.
+If you compile it for a modern kernel, you might want to change `struct
+bin_attribute*` to `const struct bin_attribute*` in the kernel module code. And change this
+```c
+	native_write_msr(addr,
+	                 (uint32_t)(newVal >>  0),
+	                 (uint32_t)(newVal >> 32));
+```
+to
+```c
+	native_write_msr(addr, newVal);
+```
+Before running the benchmark
+```shell
+sudo sh -c 'echo 0 > /sys/devices/system/cpu/cpu11/online'
+sudo sh -c 'echo 2 > /sys/bus/event_source/devices/cpu_core/rdpmc'
+sudo sh -c 'echo 0 > /proc/sys/kernel/nmi_watchdog'
+```
+The benchmark runs on core 10. You might want to update it in `mtxtrans.cpp`,
+along with the line that disables core 11 above, depending on your CPU
+architecture.

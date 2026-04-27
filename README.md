@@ -26,14 +26,14 @@ to the theoretical limit of the silicon.
 | Counter | SIMD | Naive (Clang) | Naive (GCC) |
 |---------|------:|------:|------:|
 | instructions | 229 | 482 | 748 |
-| core cycles | 99 | 216 | 217 |
+| core cycles | $\textcolor{green}{\text{𝟵𝟵}}$ | $\textcolor{red}{\text{𝟮𝟭𝟲}}$ | $\textcolor{red}{\text{𝟮𝟭𝟳}}$ |
 | uops_issued.any | 229 | 481 | 748 |
 | uops_retired.slots | 229 | 481 | 748 |
-| resource_stalls.sb | 0 | 135 | 92
+| resource_stalls.sb | $\textcolor{green}{\text{𝟬}}$ | $\textcolor{red}{\text{𝟭𝟯𝟱}}$ | $\textcolor{red}{\text{𝟵𝟮}}$ |
 | uops_dispatched.port_0 | 27 | 0 | 40 |
 | uops_dispatched.port_1 | 68 | 0 | 30 |
-| uops_dispatched.port_2_3_10 | 9 | 240 | 241 |
-| uops_dispatched.port_4_9 | 9 | 240 | 242 |
+| uops_dispatched.port_2_3_10 | $\textcolor{green}{\text{𝟵}}$ | $\textcolor{red}{\text{𝟮𝟰𝟬}}$ | $\textcolor{red}{\text{𝟮𝟰𝟭}}$ |
+| uops_dispatched.port_4_9 | $\textcolor{green}{\text{𝟵}}$ | $\textcolor{red}{\text{𝟮𝟰𝟬}}$ | $\textcolor{red}{\text{𝟮𝟰𝟮}}$ |
 | uops_dispatched.port_5_11 | 87 | 0 | 66 |
 
 ## Contents

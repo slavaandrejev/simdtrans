@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
     simdtrans(&mtx2[0]);
     if (!std::equal(mtx.cbegin(), mtx.cend(), mtx2.cbegin())) {
         fmt::print(stderr, "simdtrans is incorrect\n");
-        print_mtx(mtx);
+        print_mtx(mtx2);
         fmt::print("-----------------------------------------------\n");
         return -1;
     }

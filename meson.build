@@ -14,7 +14,7 @@ compiler = meson.get_compiler('c')
 if get_option('buildtype') == ('debug')
     add_project_arguments('-DDEBUG', language: ['c', 'cpp'])
 endif
-if get_option('buildtype') == 'release'
+if get_option('buildtype') == 'release' or get_option('buildtype') == 'debugoptimized'
     add_project_arguments('-DNDEBUG', language: ['c', 'cpp'])
 endif
 

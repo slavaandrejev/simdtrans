@@ -1,298 +1,77 @@
     .global simdtrans
-
     .text
 
-    # Load and transpose 2 rows of 2x2 submatrices (eight 2x2 blocks in total)
-    # of 16x16 matrix of bytes. Store the result in two ymm registers.
-    #     rfrom:  GPR with the address of the first row of the matrix to
-    #             transpose.
-    #     offset: Offset to the first row to start transposing from.
-    #     regto1: ymm register to store rows 0, 2 of the transposed blocks
-    #     regto2: ymm register to store rows 1, 3 of the transposed blocks
-    #
-    # \regto1 and \regto2 will have the following transposed 2x2 blocks:
-    #  bytes: 31            24 23           16 15            8 7              0
-    # \regto1 ┌───┬───┬───┬───┬───┬───┬───┬───╥───┬───┬───┬───┬───┬───┬───┬───┐
-    #         │1,7│1,6│1,5│1,4│1,3│1,2│1,1│1,0║0,7│0,6│0,5│0,4│0,3│0,2│0,1│0,0│
-    # \regto2 └───┴───┴───┴───┴───┴───┴───┴───╨───┴───┴───┴───┴───┴───┴───┴───┘
-    # Numbers above are block indices, i.e. the following arrangement of the
-    # elements:
-    # bytes:   31           30   17        16 15          14   1           0
-    #          ┌──────────────┬─┬────────────╥──────────────┬─┬────────────┐
-    # \regto1: │a[3,14]a[2,14]│…|a[3,0]a[2,0]║a[1,14]a[0,14]│…|a[1,0]a[0,0]|
-    # \regto2: │a[3,15]a[2,15]│…|a[3,1]a[2,1]║a[1,15]a[0,15]│…|a[1,1]a[0,1]|
-    #          └──────────────┴─┴────────────╨──────────────┴─┴────────────┘
     .macro transpose2x2x1 rfrom:req, offset:req, regto1:req, regto2:req
-        vmovdqa      \offset(\rfrom), %ymm2
-        vmovdqa      \offset + 0x20(\rfrom), %ymm1
+        vmovdqa    \offset(\rfrom), %ymm2
+        vmovdqa    \offset + 0x20(\rfrom), %ymm3
 
-        vinserti128  $1, %xmm1, %ymm2, %ymm0
-        vextracti128 $1, %ymm2, %xmm2
-        vinserti128  $0, %xmm2, %ymm1, %ymm1
-        # ymm0 and ymm1 now have 4 rows arranged in pairs like this:
-        # bytes: 31          24 23         16 15          8 7            0
-        #        ┌───────────────────────────╥───────────────────────────┐
-        # ymm0:  │           row 2           ║           row 0           │
-        #        ├───────────────────────────╫───────────────────────────┤
-        # ymm1:  │           row 3           ║           row 1           │
-        #        └───────────────────────────╨───────────────────────────┘
+        vpunpcklbw %ymm3, %ymm2, %ymm0
+        vpunpckhbw %ymm3, %ymm2, %ymm1
 
-        vpunpcklbw   %ymm1, %ymm0, %ymm2
-        # ymm2 now has rows of transposed 2x2 blocks (0,0), (0,1), (0,2), (0,3),
-        # (1,0), (1,1), (1,2), (1,3):
-        # bytes: 31         30   17        16 15        14   1           0
-        #        ┌────────────┬─┬────────────╥────────────┬─┬────────────┐
-        # ymm2:  │a[3,7]a[2,7]│…│a[3,0]a[2,0]║a[1,7]a[0,7]│…│a[1,0]a[0,0]|
-        #        └────────────┴─┴────────────╨────────────┴─┴────────────┘
-        # We have to put odd words in one register, even in another to form
-        # matrices.
+        vpunpcklwd %ymm1, %ymm0, \regto1
+        vpunpckhwd %ymm1, %ymm0, \regto2
+    .endm
 
-        vpunpckhbw   %ymm1, %ymm0, %ymm3
-        # ymm3 now has rows of transposed 2x2 blocks (0,4), (0,5), (0,6), (0,7),
-        # (1,4), (1,5), (1,6), (1,7):
-        # bytes: 31           30   17        16 15          14   1           0
-        #        ┌──────────────┬─┬────────────╥──────────────┬─┬────────────┐
-        # ymm3:  │a[3,15]a[2,15]│…│a[3,8]a[2,8]║a[1,15]a[0,15]│…│a[1,8]a[0,8]|
-        #        └──────────────┴─┴────────────╨──────────────┴─┴────────────┘
-        # We have to put odd words in one register, even in another to form
-        # matrices.
+    .macro transpose2x2x2 r1:req, r2:req
+        vpunpcklwd \r2, \r1, %ymm0
+        vpunpckhwd \r2, \r1, %ymm1
 
-        # separating even words (upper parts of 2x2 blocks) and packing them to
-        # \regto1
-        vpxor        %ymm4, %ymm4, %ymm4
-        vpblendw     $0b01010101, %ymm2, %ymm4, %ymm4
-        # ymm4 has the upper parts of blocks (0,0), (0,1), (0,2), (0,3), (1,0),
-        # (1,1), (1,2), (1,3):
-        # bytes: 31             28   19            16 15            12   3               0
-        #        ┌───┬────────────┬─┬───┬────────────╥───┬────────────┬─┬───┬────────────┐
-        # ymm4:  |0,0|a[3,6]a[2,6]│…│0,0│a[3,0]a[2,0]║0,0|a[1,6]a[0,6]│…│0,0│a[1,0]a[0,0]|
-        #        └───┴────────────┴─┴───┴────────────╨───┴────────────┴─┴───┴────────────┘
-        vpxor        %ymm5, %ymm5, %ymm5
-        vpblendw     $0b01010101, %ymm3, %ymm5, %ymm5
-        # ymm5 has the upper parts of blocks (0,4), (0,5), (0,6), (0,7),
-        # (1,4), (1,5), (1,6), (1,7):
-        # bytes: 31               28   19            16 15              12   3               0
-        #        ┌───┬──────────────┬─┬───┬────────────╥───┬──────────────┬─┬───┬────────────┐
-        # ymm5:  |0,0|a[3,14]a[2,14]│…│0,0│a[3,8]a[2,8]║0,0|a[1,14]a[0,14]│…│0,0│a[1,8]a[0,8]|
-        #        └───┴──────────────┴─┴───┴────────────╨───┴──────────────┴─┴───┴────────────┘
+        vpunpckldq %ymm1, %ymm0, \r1
+        vpunpckhdq %ymm1, %ymm0, \r2
+    .endm
 
-        # pack all upper parts to one register:
-        vpackusdw    %ymm5, %ymm4, \regto1
+    .macro transpose2x2x4 r1:req, r2:req
+        vpunpckldq  \r2, \r1, %ymm0
+        vpunpckhdq  \r2, \r1, %ymm1
 
-        # separating odd words (lower parts of 2x2 blocks) and packing them to
-        # \regto2
-        vpsrldq      $2, %ymm2, %ymm2
-        vpsrldq      $2, %ymm3, %ymm3
-        vpblendw     $0b01010101, %ymm2, %ymm4, %ymm4
-        # ymm4 has the lower parts of blocks (0,0), (0,1), (0,2), (0,3), (1,0),
-        # (1,1), (1,2), (1,3):
-        # bytes: 31             28   19            16 15            12   3               0
-        #        ┌───┬────────────┬─┬───┬────────────╥───┬────────────┬─┬───┬────────────┐
-        # ymm4:  |0,0|a[3,7]a[2,7]│…│0,0│a[3,1]a[2,1]║0,0|a[1,7]a[0,7]│…│0,0│a[1,1]a[0,1]|
-        #        └───┴────────────┴─┴───┴────────────╨───┴────────────┴─┴───┴────────────┘
-        vpblendw     $0b01010101, %ymm3, %ymm5, %ymm5
-        # ymm5 has the lower parts of blocks (0,4), (0,5), (0,6), (0,7),
-        # (1,4), (1,5), (1,6), (1,7):
-        # bytes: 31               28   19            16 15              12   3               0
-        #        ┌───┬──────────────┬─┬───┬────────────╥───┬──────────────┬─┬───┬────────────┐
-        # ymm5:  |0,0|a[3,15]a[2,15]│…│0,0│a[3,9]a[2,9]║0,0|a[1,15]a[0,15]│…│0,0│a[1,9]a[0,9]|
-        #        └───┴──────────────┴─┴───┴────────────╨───┴──────────────┴─┴───┴────────────┘
-
-        # pack all lower parts to one register:
-        vpackusdw    %ymm5, %ymm4, \regto2
+        vpunpcklqdq %ymm1, %ymm0, \r1
+        vpunpckhqdq %ymm1, %ymm0, \r2
     .endm
 
     # Swap high 128 bits of one ymm register with low 128 bits of another
     .macro swaphldqw r1N:req, r2N:req
-        vextracti128 $1, %ymm\r1N, %xmm0
-        vinserti128  $1, %xmm\r2N, %ymm\r1N, %ymm\r1N
-        vinserti128  $0, %xmm0, %ymm\r2N, %ymm\r2N
-    .endm
-
-    # Transform 2x4 submatrices by transposing pairs of adjacent bytes as if
-    # they represent elements of a 2x2 matrix. For example:
-    #      │ a[0,0] a[0,1] a[0,2] a[0,3] │    │ a[0,0] a[0,1] a[1,0] a[1,1] │
-    # from │ a[1,0] a[1,1] a[1,2] a[1,3] │ to │ a[0,2] a[0,3] a[1,2] a[1,3] │.
-    # \r1 and \r2 are ymm registers with 8 of such matrices. The result will be
-    # in place.
-    .macro transpose2x2x2 r1:req, r2:req
-        # The algorithm is the same as in transpose2x2x1, except: (i) the elemet
-        # size is not a byte, but a word; (ii) there is no pack instruction in
-        # AVX2 that converts QWORD do DWORD, we have to use a couple of shuffles
-        # instead.
-
-        # get rows of transposed matrices in ymm0 and ymm1
-        vpunpcklwd   \r2, \r1, %ymm0
-        vpunpckhwd   \r2, \r1, %ymm1
-
-        # separating even dwords
-        vpxor        %ymm2, %ymm2, %ymm2
-        vpblendw     $0b00110011, %ymm0, %ymm2, %ymm2
-        vpxor        %ymm3, %ymm3, %ymm3
-        vpblendw     $0b00110011, %ymm1, %ymm3, %ymm3
-        vpshufd      $0b11011000, %ymm2, %ymm2
-        vpshufd      $0b10001101, %ymm3, %ymm3
-        vpor         %ymm2, %ymm3, \r1
-
-        # separating odd dwords
-        vpsrldq      $4, %ymm0, %ymm0
-        vpsrldq      $4, %ymm1, %ymm1
-        vpxor        %ymm2, %ymm2, %ymm2
-        vpblendw     $0b00110011, %ymm0, %ymm2, %ymm2
-        vpxor        %ymm3, %ymm3, %ymm3
-        vpblendw     $0b00110011, %ymm1, %ymm3, %ymm3
-        vpshufd      $0b11011000, %ymm2, %ymm2
-        vpshufd      $0b10001101, %ymm3, %ymm3
-        vpor         %ymm2, %ymm3, \r2
-    .endm
-
-    .macro transpose2x2x4 r1:req, r2:req
-        vpunpckldq   \r2, \r1, %ymm0
-        vpunpckhdq   \r2, \r1, %ymm1
-
-        vpblendd     $0b00110011, %ymm0, \r1, \r1
-        vpblendd     $0b11001100, %ymm1, \r2, \r2
-        vpshufd      $0b01001110, %ymm0, %ymm0
-        vpshufd      $0b01001110, %ymm1, %ymm1
-        vpblendd     $0b00110011, %ymm0, \r2, \r2
-        vpblendd     $0b11001100, %ymm1, \r1, \r1
+        vperm2i128 $0x20, %ymm\r2N, %ymm\r1N, %ymm0
+        vperm2i128 $0x31, %ymm\r2N, %ymm\r1N, %ymm\r2N
+        vmovdqa    %ymm0, %ymm\r1N
     .endm
 
 simdtrans:
-    transpose2x2x1 %rdi, 0x00, %ymm8,  %ymm9
-    transpose2x2x1 %rdi, 0x40, %ymm10, %ymm11
-    transpose2x2x1 %rdi, 0x80, %ymm12, %ymm13
-    transpose2x2x1 %rdi, 0xc0, %ymm14, %ymm15
+    transpose2x2x1 %rdi, 0x00, %ymm4,  %ymm5
+    transpose2x2x1 %rdi, 0x40, %ymm6,  %ymm7
+    transpose2x2x1 %rdi, 0x80, %ymm8,  %ymm9
+    transpose2x2x1 %rdi, 0xc0, %ymm10, %ymm11
 
-    # Here is 2x2 blocks we have in ymm8, ymm9, ymm10, ymm11:
-    # bytes:  31            24 23           16 15            8 7              0
-    # ymm8:   ┌───┬───┬───┬───┬───┬───┬───┬───╥───┬───┬───┬───┬───┬───┬───┬───┐
-    # ymm9:   │1,7│1,6│1,5│1,4│1,3│1,2│1,1│1,0║0,7│0,6│0,5│0,4│0,3│0,2│0,1│0,0│
-    #         ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
-    # ymm10:  │3,7│3,6│3,5│3,4│3,3│3,2│3,1│3,0║2,7│2,6│2,5│2,4│2,3│2,2│2,1│2,0│
-    # ymm11:  └───┴───┴───┴───┴───┴───┴───┴───╨───┴───┴───┴───┴───┴───┴───┴───┘
-    # Let's rearrange them first so that consequent rows of blocks are on top of
-    # each other:
-    # ymm8:   ┌───┬───┬───┬───┬───┬───┬───┬───╥───┬───┬───┬───┬───┬───┬───┬───┐
-    # ymm9:   │2,7│2,6│2,5│2,4│2,3│2,2│2,1│2,0║0,7│0,6│0,5│0,4│0,3│0,2│0,1│0,0│
-    #         ╞═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╪═══╪═══╪═══╪═══╡
-    # ymm10:  │3,7│3,6│3,5│3,4│3,3│3,2│3,1│3,0║1,7│1,6│1,5│1,4│1,3│1,2│1,1│1,0│
-    # ymm11:  └───┴───┴───┴───┴───┴───┴───┴───╨───┴───┴───┴───┴───┴───┴───┴───┘
-    swaphldqw 8, 10
-    swaphldqw 9, 11
-    # Now we have this in ymm8, ymm9, ymm10, ymm11:
-    # bytes:  31           30   17        16 15          14   1           0
-    #         ┌──────────────┬─┬────────────╥──────────────┬─┬────────────┐
-    # \ymm8:  │a[5,14]a[4,14]│…|a[5,0]a[4,0]║a[1,14]a[0,14]│…|a[1,0]a[0,0]|
-    # \ymm9:  │a[5,15]a[4,15]│…|a[5,1]a[4,1]║a[1,15]a[0,15]│…|a[1,1]a[0,1]|
-    #         ╞══════════════╪═╪════════════╬══════════════╪═╪════════════╡
-    # \ymm10: │a[7,14]a[6,14]│…|a[7,0]a[6,0]║a[3,14]a[2,14]│…|a[3,0]a[2,0]|
-    # \ymm11: │a[7,15]a[6,15]│…|a[7,1]a[6,1]║a[3,15]a[2,15]│…|a[3,1]a[2,1]|
-    #         └──────────────┴─┴────────────╨──────────────┴─┴────────────┘
-
-    # transpose 4x4 blocks in ymm8, ymm9, ymm10, ymm11:
+    transpose2x2x2 %ymm4, %ymm6
+    transpose2x2x2 %ymm5, %ymm7
     transpose2x2x2 %ymm8, %ymm10
     transpose2x2x2 %ymm9, %ymm11
 
-    # the same for ymm12, ymm13, ymm14, ymm15:
-    swaphldqw 12, 14
-    swaphldqw 13, 15
-    transpose2x2x2 %ymm12, %ymm14
-    transpose2x2x2 %ymm13, %ymm15
+    transpose2x2x4 %ymm4, %ymm8
+    transpose2x2x4 %ymm5, %ymm9
+    transpose2x2x4 %ymm6, %ymm10
+    transpose2x2x4 %ymm7, %ymm11
 
-    # ymm8-ymm15 have the following 4x4 blocks:
-    # ┌───┬───┬───┬───╥───┬───┬───┬───┐
-    # │1,3│1,2│1,1│1,0║0,3│0,2│0,1│0,0│
-    # ╞═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╡
-    # │3,3│3,2│3,1│3,0║2,3│2,2│2,1│2,0│
-    # └───┴───┴───┴───╨───┴───┴───┴───┘
-    # again, let's change it to
-    # ┌───┬───┬───┬───╥───┬───┬───┬───┐
-    # │2,3│2,2│2,1│2,0║0,3│0,2│0,1│0,0│
-    # ╞═══╪═══╪═══╪═══╬═══╪═══╪═══╪═══╡
-    # │3,3│3,2│3,1│3,0║1,3│1,2│1,1│1,0│
-    # └───┴───┴───┴───╨───┴───┴───┴───┘
-    # first:
-    swaphldqw 8, 12
-    swaphldqw 9, 13
-    swaphldqw 10, 14
-    swaphldqw 11, 15
+    swaphldqw 4, 6
+    swaphldqw 8, 10
+    swaphldqw 5, 7
+    swaphldqw 9, 11
 
-    transpose2x2x4 %ymm8, %ymm12
-    transpose2x2x4 %ymm9, %ymm13
-    transpose2x2x4 %ymm10, %ymm14
-    transpose2x2x4 %ymm11, %ymm15
-
-    # Here is a summary of what we get after we finished the above code
-    #       31          24 23         16 15          8 7           0
-    #       ┌─────────────┬─────────────┬─────────────┬─────────────┐
-    # ymm8  │   a[8,15:8] │   a[0,15:8] │    a[8,0:7] │    a[0,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm9  │   a[9,15:8] │   a[1,15:8] │    a[9,0:7] │    a[1,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm10 │  a[10,15:8] │   a[2,15:8] │   a[10,0:7] │    a[2,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm11 │  a[11,15:8] │   a[3,15:8] │   a[11,0:7] │    a[3,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm12 │  a[12,15:8] │   a[4,15:8] │   a[12,0:7] │    a[4,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm13 │  a[13,15:8] │   a[5,15:8] │   a[13,0:7] │    a[5,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm14 │  a[14,15:8] │   a[6,15:8] │   a[14,0:7] │    a[6,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm15 │  a[15,15:8] │   a[7,15:8] │   a[15,0:7] │    a[7,0:7] │
-    #       └─────────────┴─────────────┴─────────────┴─────────────┘
-
-    vpermq       $0b11011000, %ymm8, %ymm8
-    vpermq       $0b11011000, %ymm9, %ymm9
-    vpermq       $0b11011000, %ymm10, %ymm10
-    vpermq       $0b11011000, %ymm11, %ymm11
-    vpermq       $0b11011000, %ymm12, %ymm12
-    vpermq       $0b11011000, %ymm13, %ymm13
-    vpermq       $0b11011000, %ymm14, %ymm14
-    vpermq       $0b11011000, %ymm15, %ymm15
-
-    # Here is a summary of what we get after we finished the above code
-    #       31          24 23         16 15          8 7           0
-    #       ┌─────────────┬─────────────┬─────────────┬─────────────┐
-    # ymm8  │   a[8,15:8] │    a[8,0:7] │   a[0,15:8] │    a[0,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm9  │   a[9,15:8] │    a[9,0:7] │   a[1,15:8] │    a[1,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm10 │  a[10,15:8] │   a[10,0:7] │   a[2,15:8] │    a[2,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm11 │  a[11,15:8] │   a[11,0:7] │   a[3,15:8] │    a[3,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm12 │  a[12,15:8] │   a[12,0:7] │   a[4,15:8] │    a[4,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm13 │  a[13,15:8] │   a[13,0:7] │   a[5,15:8] │    a[5,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm14 │  a[14,15:8] │   a[14,0:7] │   a[6,15:8] │    a[6,0:7] │
-    #       ├─────────────┼─────────────┼─────────────┼─────────────┤
-    # ymm15 │  a[15,15:8] │   a[15,0:7] │   a[7,15:8] │    a[7,0:7] │
-    #       └─────────────┴─────────────┴─────────────┴─────────────┘
-
-    vinserti128  $1, %xmm9, %ymm8, %ymm0
-    vinserti128  $1, %xmm11, %ymm10, %ymm1
-    vinserti128  $1, %xmm13, %ymm12, %ymm2
-    vinserti128  $1, %xmm15, %ymm14, %ymm3
-
-    vextracti128 $1, %ymm8, %xmm4
-    vpblendd     $0b11110000, %ymm9, %ymm4, %ymm4
-    vextracti128 $1, %ymm10, %xmm5
-    vpblendd     $0b11110000, %ymm11, %ymm5, %ymm5
-    vextracti128 $1, %ymm12, %xmm6
-    vpblendd     $0b11110000, %ymm13, %ymm6, %ymm6
-    vextracti128 $1, %ymm14, %xmm7
-    vpblendd     $0b11110000, %ymm15, %ymm7, %ymm7
-
-    vmovdqa      %ymm0, 0x00(%rdi)
+    vpunpcklbw   %ymm6, %ymm4, %ymm1
+    vmovdqa      %ymm1, 0x00(%rdi)
+    vpunpcklbw   %ymm10, %ymm8, %ymm1
     vmovdqa      %ymm1, 0x20(%rdi)
-    vmovdqa      %ymm2, 0x40(%rdi)
-    vmovdqa      %ymm3, 0x60(%rdi)
-    vmovdqa      %ymm4, 0x80(%rdi)
-    vmovdqa      %ymm5, 0xa0(%rdi)
-    vmovdqa      %ymm6, 0xc0(%rdi)
-    vmovdqa      %ymm7, 0xe0(%rdi)
+    vpunpcklbw   %ymm7, %ymm5, %ymm1
+    vmovdqa      %ymm1, 0x40(%rdi)
+    vpunpcklbw   %ymm11, %ymm9, %ymm1
+    vmovdqa      %ymm1, 0x60(%rdi)
+
+    vpunpckhbw   %ymm6, %ymm4, %ymm1
+    vmovdqa      %ymm1, 0x80(%rdi)
+    vpunpckhbw   %ymm10, %ymm8, %ymm1
+    vmovdqa      %ymm1, 0xa0(%rdi)
+    vpunpckhbw   %ymm7, %ymm5, %ymm1
+    vmovdqa      %ymm1, 0xc0(%rdi)
+    vpunpckhbw   %ymm11, %ymm9, %ymm1
+    vmovdqa      %ymm1, 0xe0(%rdi)
 
     ret

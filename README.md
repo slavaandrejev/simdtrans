@@ -43,13 +43,14 @@ to the theoretical limit of the silicon.
 
 ## Brief Algorithm Description
 
-The algorithm is a cascade of unpacks. At each stage it interleaves and joins
-_n_-byte sized words from 2 registers into _2n_-byte sized words. The trick is
-that during the cascade, the algorithm is not trying to enforce a proper matrix
-structure of the data. If we did, we would have used some extra swaps. Since all
-our swap operations commute, we can postpone structural rearrangements to the
-very end. It turns out, this structural rearrangement can be done with a couple
-more unpacks.
+The algorithm is a cascade of unpacks. Each stage of the cascade turns
+vertically adjacent elements into horizontally adjacent ones, at progressively
+wider widths: bytes, words, and dwords. The side effect is that each stage also
+scrambles the ordering within the register, but since later stages don't depend
+on a particular ordering, only on the correct grouping, the scrambling is
+harmless. We could have corrected the order between stages to keep the right
+matrix structure, but that would incur extra CPU cycles. Instead, we let the
+reordering to accumulate. The final unpack corrects the ordering in one step.
 
 ## libpfc notes
 

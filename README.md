@@ -1,9 +1,9 @@
 # Bare-Metal AVX2 Matrix Transpose (16x16 Byte)
 
-This repository contains a bare-metal AVX2 implementation of a 16x16 byte matrix
+This repository contains a bare-metal AVX2 implementation of a 16x16-byte matrix
 transposition.
 
-The algorithm shows roughly 5x performance gain compared to a naive scalar
+The algorithm shows roughly a 5x performance gain compared to a naive scalar
 baseline implementation, even though the entire working set fits in L1 cache.
 Hardware profiling reveals that when an algorithm is dominated by memory
 operations, the load/store unit throughput becomes the bottleneck, regardless
@@ -54,7 +54,7 @@ reordering accumulate. The final unpack corrects the ordering in one step.
 
 ## Detailed Algorithm Description
 
-Let's consider the following 16×16 matrix and assume it's row-major.
+Let's consider the following 16×16 matrix and assume it's stored in row-major order.
 
 $$
 \begin{pmatrix}
@@ -135,9 +135,9 @@ $$
 \end{pmatrix}
 $$
 
-You can see the emerging pattern, we now have 4×4 transposed blocks. If
+You can see the emerging pattern; we now have 4×4 transposed blocks. If
 we continue the process with double words, we will get 8×8 transposed
-blocks. Finally, exchanging quadruple words will get us a transposed matrix.
+blocks. Finally, exchanging the quadruple words will yield a transposed matrix.
 
 AVX has a perfect set of commands for this type of exchange: `vpunpck...`. They
 do almost what we need: they take a couple of numbers from two registers, stick
@@ -165,7 +165,7 @@ vmovdqa         %ymm1, 0x20(%rdi)
 
 ![vpunpcklbw visualization](docs/vpunpckhbw-rows-0-3.svg)
 
-we will get
+We will get
 
 $$
 \begin{pmatrix}
@@ -208,14 +208,14 @@ $$
 
 We can see that bytes that were arranged vertically now are arranged
 horizontally. With one caveat: the arrangement skips some elements. For example,
-00 and 20 used one above another, but there was 10 between them. Now they are
+00 and 20 used to be one above another, but there was 10 between them. Now they are
 horizontally adjacent.
 
 We can try to shuffle elements around to get them in the right order, but this
 will take precious CPU cycles. We can avoid it. Here comes the main idea of the
 algorithm. Let's ignore the changes in the adjacency! We will continue swaps
-with the increasing size bytes like in the classical Eklundh and do the final
-arrangement in the very end.
+with increasing number of bytes like in the classical Eklundh and do the final
+arrangement at the very end.
 
 ```gas
 .macro transpose2x2x1 rfrom:req, offset:req, regto1:req, regto2:req
@@ -260,7 +260,7 @@ transpose2x2x4 %ymm5, %ymm9
 transpose2x2x4 %ymm6, %ymm10
 transpose2x2x4 %ymm7, %ymm11
 ```
-Here how the current result would have looked like if we copied registers from `ymm4` to `ymm11`,
+Here is how the current result would have looked if we copied registers from `ymm4` to `ymm11`,
 
 $$
 \begin{pmatrix}
@@ -283,8 +283,8 @@ $$
 \end{pmatrix}
 $$
 
-We are almost there. Now it's time overcome the fundamental AVX limitation: the
-128-bit barrier. We need to swap the high 128 bits of one ymm register with low
+We are almost there. Now it's time to overcome the fundamental AVX limitation: the
+128-bit barrier. We need to swap the high 128 bits of one ymm register with the low
 bits of another. The only way to do it is through an intermediate register.
 
 ```gas
@@ -301,7 +301,7 @@ Now we can rearrange. For example,
 swaphldqw 4, 6
 ```
 
-Here is how `ymm4` and `ymm6` will look like after this operation.
+Here is how `ymm4` and `ymm6` will look after this operation.
 
 ![ymm4 and ymm6](docs/ymm4ymm6.svg)
 
@@ -326,6 +326,8 @@ vmovdqa      %ymm1, 0xc0(%rdi)
 vpunpckhbw   %ymm11, %ymm9, %ymm1
 vmovdqa      %ymm1, 0xe0(%rdi)
 ```
+
+We are done.
 
 ## libpfc notes
 
